@@ -1,4 +1,4 @@
-\services:
+services:
   - type: worker
     name: finance-bot
     runtime: python
