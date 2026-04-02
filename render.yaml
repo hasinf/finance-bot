@@ -10,9 +10,9 @@ services:
       mountPath: /data
       sizeGB: 1
     envVars:
-      - key: TELEGRAM_BOT_TOKEN
+      - key: 8753909992:AAGuEvfEQjVkCFN8Qdchr3vg6TVsVoZ04W4
         sync: false
-      - key: ANTHROPIC_API_KEY
+      - key: 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
         sync: false
       - key: DB_PATH
         value: /data/expenses.db
