@@ -1,0 +1,19 @@
+services:
+  - type: worker          # background worker — stays alive 24/7, no HTTP port needed
+    name: finance-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    plan: free
+    disk:
+      name: bot-data
+      mountPath: /data     # SQLite database lives here, survives restarts
+      sizeGB: 1
+
+envVars:
+  - key: TELEGRAM_BOT_TOKEN
+    sync: false            # you enter this manually in Render's dashboard
+  - key: ANTHROPIC_API_KEY
+    sync: false            # same — enter manually
+  - key: DB_PATH
+    value: /data/expenses.db
