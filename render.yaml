@@ -5,14 +5,10 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     plan: free
-    disk:
-      name: bot-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
-      - key: 8753909992:AAGuEvfEQjVkCFN8Qdchr3vg6TVsVoZ04W4
+      - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: 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
+      - key: ANTHROPIC_API_KEY
         sync: false
       - key: DB_PATH
         value: /data/expenses.db
