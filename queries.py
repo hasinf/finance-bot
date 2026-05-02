@@ -138,6 +138,15 @@ def format_query_response(expenses: list[dict], timeframe_label: str, category: 
         label = f"{category} " if category else ""
         return f"No {label.lower()}expenses found for {timeframe_label}."
 
+    if timeframe_label == "Today" and not category:
+        lines = ["*Today's Expenses*\n"]
+        total = 0
+        for exp in expenses:
+            lines.append(f"• {exp['description'].lower()} — {exp['amount']:.0f} ({exp['category']})")
+            total += exp["amount"]
+        lines.append(f"\n*Total: {total:.0f}*")
+        return "\n".join(lines)
+
     if category:
         by_date = defaultdict(float)
         for exp in expenses:
