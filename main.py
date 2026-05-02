@@ -1,8 +1,8 @@
 import os
 import logging
+import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import telegram
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -79,10 +79,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "_transport expenses today_\n\n"
         "Commands:\n"
         "/start - Show this message\n"
+        "/today - Today's expenses\n"
         "/summary - Today's spending summary\n"
         "/help - Show this message"
     )
     await update.message.reply_text(welcome, parse_mode="Markdown")
+
+
+async def today_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update.effective_user.id):
+        return
+
+    expenses = database.get_today_expenses()
+    if not expenses:
+        await update.message.reply_text("No expenses recorded today.")
+        return
+
+    lines = ["*Today's Expenses*\n"]
+    total = 0
+    for exp in expenses:
+        lines.append(f"• {exp['description'].lower()} — {exp['amount']:.0f} ({exp['category']})")
+        total += exp["amount"]
+
+    lines.append(f"\n*Total: {total:.0f}*")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
 async def summary_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -90,7 +110,7 @@ async def summary_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     expenses = database.get_today_expenses()
-    summary_text = scheduler._format_summary(expenses)
+    summary_text = queries.format_daily_summary(expenses)
     await update.message.reply_text(summary_text, parse_mode="Markdown")
 
 
@@ -136,7 +156,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-def main():
+async def main():
     database.init_db()
 
     if not TOKEN:
@@ -151,17 +171,21 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", start))
     app.add_handler(CommandHandler("summary", summary_command))
+    app.add_handler(CommandHandler("today", today_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_error_handler(error_handler)
 
     if OWNER_ID:
-        bot_instance = app.bot
-        scheduler.setup_scheduler(bot_instance, OWNER_ID)
+        scheduler.OWNER_CHAT_ID = OWNER_ID
+        scheduler.setup_scheduler(app.bot)
         logger.info(f"Daily summary scheduled for user {OWNER_ID}")
 
     logger.info("Bot started. Polling for updates...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
