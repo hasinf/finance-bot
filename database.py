@@ -1,10 +1,12 @@
 import sqlite3
 import os
 from datetime import datetime, date, timedelta
-from typing import Optional
 
 
 DB_PATH = os.environ.get("DB_PATH", "expenses.db")
+
+if os.path.dirname(DB_PATH) == "":
+    DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), DB_PATH)
 
 
 def get_connection() -> sqlite3.Connection:
