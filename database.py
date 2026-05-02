@@ -8,11 +8,9 @@ TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
 
 def get_connection():
     if TURSO_URL and TURSO_TOKEN:
-        conn = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+        return libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
     else:
-        conn = libsql.connect("file:expenses.db")
-    conn.row_factory = libsql.Row
-    return conn
+        return libsql.connect("file:expenses.db")
 
 
 def init_db():
@@ -59,7 +57,10 @@ def get_today_expenses() -> list[dict]:
         "SELECT * FROM expenses WHERE date = ? ORDER BY time", (today,)
     ).fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    return [
+        {"id": r[0], "date": r[1], "time": r[2], "description": r[3], "amount": r[4], "category": r[5]}
+        for r in rows
+    ]
 
 
 def get_expenses_by_date_range(start: date, end: date) -> list[dict]:
@@ -69,7 +70,10 @@ def get_expenses_by_date_range(start: date, end: date) -> list[dict]:
         (start.isoformat(), end.isoformat()),
     ).fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    return [
+        {"id": r[0], "date": r[1], "time": r[2], "description": r[3], "amount": r[4], "category": r[5]}
+        for r in rows
+    ]
 
 
 def get_expenses_by_category_and_range(category: str, start: date, end: date) -> list[dict]:
@@ -79,7 +83,10 @@ def get_expenses_by_category_and_range(category: str, start: date, end: date) ->
         (category, start.isoformat(), end.isoformat()),
     ).fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    return [
+        {"id": r[0], "date": r[1], "time": r[2], "description": r[3], "amount": r[4], "category": r[5]}
+        for r in rows
+    ]
 
 
 def get_all_categories() -> list[str]:
@@ -88,4 +95,4 @@ def get_all_categories() -> list[str]:
         "SELECT DISTINCT category FROM expenses ORDER BY category"
     ).fetchall()
     conn.close()
-    return [row["category"] for row in rows]
+    return [r[0] for r in rows]
