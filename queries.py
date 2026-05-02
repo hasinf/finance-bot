@@ -99,20 +99,22 @@ def parse_category_query(text: str) -> str | None:
     return None
 
 
-def handle_query(text: str) -> str:
+def handle_query(text: str) -> str | None:
     text_lower = text.lower()
 
     query_words = [
         "how much", "spend", "spent", "expenses", "expense",
         "total", "summary", "show", "what", "spending",
     ]
+    is_query = any(word in text_lower for word in query_words)
 
-    bare_time = ["today", "yesterday", "this week", "last week", "this month", "last month", "last 7", "last 30"]
+    bare_time = [
+        "today", "yesterday", "this week", "last week",
+        "this month", "last month", "last 7", "last 30",
+    ]
     is_bare_time = any(b in text_lower for b in bare_time)
 
-    is_query = any(word in text_lower for word in query_words) or is_bare_time
-
-    if not is_query:
+    if not is_query and not is_bare_time:
         return None
 
     timeframe = parse_timeframe(text_lower)
