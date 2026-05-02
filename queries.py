@@ -4,42 +4,42 @@ from collections import defaultdict
 import database
 
 
-def parse_timeframe(text: str) -> tuple[date, date] | None:
+def parse_timeframe(text: str) -> tuple[date, date, str] | None:
     text_lower = text.lower()
     today = date.today()
 
     if "today" in text_lower:
-        return (today, today)
+        return (today, today, "Today")
 
     if "yesterday" in text_lower:
         yesterday = today - timedelta(days=1)
-        return (yesterday, yesterday)
+        return (yesterday, yesterday, "Yesterday")
 
     last_7 = re.search(r'(?:last\s+)?7\s*(?:days?|d)', text_lower)
     if last_7:
         start = today - timedelta(days=6)
-        return (start, today)
+        return (start, today, "Last 7 Days")
 
     last_30 = re.search(r'(?:last\s+)?30\s*(?:days?|d)', text_lower)
     if last_30:
         start = today - timedelta(days=29)
-        return (start, today)
+        return (start, today, "Last 30 Days")
 
     this_week = re.search(r'this\s+week', text_lower)
     if this_week:
         start = today - timedelta(days=today.weekday())
-        return (start, today)
+        return (start, today, "This Week")
 
     last_week = re.search(r'last\s+week', text_lower)
     if last_week:
         start = today - timedelta(days=today.weekday() + 7)
         end = today - timedelta(days=today.weekday() + 1)
-        return (start, end)
+        return (start, end, "Last Week")
 
     this_month = re.search(r'this\s+month', text_lower)
     if this_month:
         start = today.replace(day=1)
-        return (start, today)
+        return (start, today, "This Month")
 
     last_month = re.search(r'last\s+month', text_lower)
     if last_month:
@@ -49,12 +49,12 @@ def parse_timeframe(text: str) -> tuple[date, date] | None:
         else:
             start = today.replace(month=today.month - 1, day=1)
             end = today.replace(day=1) - timedelta(days=1)
-        return (start, end)
+        return (start, end, "Last Month")
 
     last_365 = re.search(r'(?:last\s+)?(?:year|365\s*days?)', text_lower)
     if last_365:
         start = today - timedelta(days=364)
-        return (start, today)
+        return (start, today, "Last Year")
 
     return None
 
@@ -99,29 +99,42 @@ def parse_category_query(text: str) -> str | None:
     return None
 
 
-def format_daily_summary(expenses: list[dict]) -> str:
-    if not expenses:
-        return "No expenses recorded today."
+def handle_query(text: str) -> str:
+    text_lower = text.lower()
 
-    by_category = defaultdict(float)
-    for exp in expenses:
-        by_category[exp["category"]] += exp["amount"]
+    query_words = [
+        "how much", "spend", "spent", "expenses", "expense",
+        "total", "summary", "show", "what", "spending",
+    ]
 
-    lines = ["*Daily Spending Summary*\n"]
-    total = 0
-    for category in sorted(by_category.keys()):
-        amount = by_category[category]
-        total += amount
-        lines.append(f"{category}: {amount:.0f}")
+    bare_time = ["today", "yesterday", "this week", "last week", "this month", "last month", "last 7", "last 30"]
+    is_bare_time = any(b in text_lower for b in bare_time)
 
-    lines.append(f"\n*Total: {total:.0f}*")
-    return "\n".join(lines)
+    is_query = any(word in text_lower for word in query_words) or is_bare_time
+
+    if not is_query:
+        return None
+
+    timeframe = parse_timeframe(text_lower)
+    if not timeframe:
+        return "I couldn't understand the time period. Try: today, yesterday, this week, last 7 days, this month, etc."
+
+    start, end, timeframe_label = timeframe
+
+    category = parse_category_query(text_lower)
+
+    if category:
+        expenses = database.get_expenses_by_category_and_range(category, start, end)
+        return format_query_response(expenses, timeframe_label, category)
+    else:
+        expenses = database.get_expenses_by_date_range(start, end)
+        return format_query_response(expenses, timeframe_label)
 
 
 def format_query_response(expenses: list[dict], timeframe_label: str, category: str | None = None) -> str:
     if not expenses:
         label = f"{category} " if category else ""
-        return f"No {label.lower()}expenses found {timeframe_label}."
+        return f"No {label.lower()}expenses found for {timeframe_label}."
 
     if category:
         by_date = defaultdict(float)
@@ -155,45 +168,20 @@ def format_query_response(expenses: list[dict], timeframe_label: str, category: 
         return "\n".join(lines)
 
 
-def handle_query(text: str) -> str:
-    text_lower = text.lower()
+def format_daily_summary(expenses: list[dict]) -> str:
+    if not expenses:
+        return "No expenses recorded today."
 
-    query_words = ["how much", "spend", "spent", "expenses", "expense", "total", "summary", "show"]
-    is_query = any(word in text_lower for word in query_words)
+    by_category = defaultdict(float)
+    for exp in expenses:
+        by_category[exp["category"]] += exp["amount"]
 
-    if not is_query:
-        return None
+    lines = ["*Daily Spending Summary*\n"]
+    total = 0
+    for category in sorted(by_category.keys()):
+        amount = by_category[category]
+        total += amount
+        lines.append(f"{category}: {amount:.0f}")
 
-    timeframe = parse_timeframe(text_lower)
-    if not timeframe:
-        return "I couldn't understand the time period. Try: today, yesterday, this week, last 7 days, this month, etc."
-
-    start, end = timeframe
-
-    if "today" in text_lower:
-        timeframe_label = "Today"
-    elif "yesterday" in text_lower:
-        timeframe_label = "Yesterday"
-    elif "7" in text_lower:
-        timeframe_label = "Last 7 Days"
-    elif "30" in text_lower:
-        timeframe_label = "Last 30 Days"
-    elif "this week" in text_lower:
-        timeframe_label = "This Week"
-    elif "last week" in text_lower:
-        timeframe_label = "Last Week"
-    elif "this month" in text_lower:
-        timeframe_label = "This Month"
-    elif "last month" in text_lower:
-        timeframe_label = "Last Month"
-    else:
-        timeframe_label = f"{start} to {end}"
-
-    category = parse_category_query(text_lower)
-
-    if category:
-        expenses = database.get_expenses_by_category_and_range(category, start, end)
-        return format_query_response(expenses, timeframe_label, category)
-    else:
-        expenses = database.get_expenses_by_date_range(start, end)
-        return format_query_response(expenses, timeframe_label)
+    lines.append(f"\n*Total: {total:.0f}*")
+    return "\n".join(lines)
