@@ -1,8 +1,8 @@
 import os
 import logging
+import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import telegram
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -136,7 +136,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-def main():
+async def main():
     database.init_db()
 
     if not TOKEN:
@@ -155,13 +155,15 @@ def main():
     app.add_error_handler(error_handler)
 
     if OWNER_ID:
-        bot_instance = app.bot
-        scheduler.setup_scheduler(bot_instance, OWNER_ID)
+        scheduler.setup_scheduler(app.bot, OWNER_ID)
         logger.info(f"Daily summary scheduled for user {OWNER_ID}")
 
     logger.info("Bot started. Polling for updates...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
