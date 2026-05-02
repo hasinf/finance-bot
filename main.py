@@ -1,5 +1,7 @@
 import os
 import logging
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import telegram
 from telegram import Update
 from telegram.ext import (
@@ -35,6 +37,24 @@ if extra_ids:
         uid = uid.strip()
         if uid.isdigit():
             AUTHORIZED_USERS.add(int(uid))
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+    def log_message(self, format, *args):
+        pass
+
+
+def start_health_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    logger.info(f"Health server running on port {port}")
+    server.serve_forever()
 
 
 def is_authorized(user_id: int) -> bool:
@@ -122,6 +142,9 @@ def main():
     if not TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN environment variable not set")
         return
+
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
 
     app = Application.builder().token(TOKEN).build()
 
